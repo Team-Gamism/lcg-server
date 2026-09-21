@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:15432/lcg}
+    username: ${DATABASE_USERNAME:lcg}
+    password: ${DATABASE_PASSWORD:lcg-local-only}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:16379}
+
+server:
+  address: 127.0.0.1
+  servlet:
+    session:
+      cookie:
+        secure: false
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+lcg:
+  environment: local
+  security:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    public-docs: true
