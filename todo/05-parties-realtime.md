@@ -1,4 +1,8 @@
-# 파티 찾기·SignalR
+# 파티 찾기·실시간 상태 전달
+
+## 통신 방식 결정 시점
+
+실시간 상태 전달은 P2 범위다. MVP는 HTTP API로 구현하고, `RT-01`에서 허용 지연·서버 부하·운영 복잡도를 기준으로 SSE, WebSocket, 주기적 조회 중 적합한 방식을 선택한다. 생성·참가·승인 등 상태 변경은 REST로 처리한다. SSE/WebSocket을 선택하면 서버의 변경 전달에 사용하며, 주기적 조회를 선택하면 갱신 주기와 허용 지연을 계약에 명시한다. 통신 방식에 관계없이 DB 상태와 접근 권한이 기준이다.
 
 ## 모델과 규칙 제안
 
@@ -35,13 +39,13 @@ Member: Active → Left / Kicked
   - 구현: 예약 시작과 자동 만료, 방장 재개 가능 범위, 낡은 티어로 참가 조건을 판단할 때의 정책, 실제 Riot 큐 제한과 LCG 희망 조건의 차이를 처리한다.
   - 완료 기준: 종료된 파티에 늦은 승인 요청을 보내도 참가되지 않는다. 잘못된 게임 모드를 별도 공식 큐로 취급하지 않으며 시즌별 듀오 제한 등을 영구 하드코딩하지 않는다.
 
-- [ ] **RT-01 | P2 | 인증된 SignalR 허브·그룹** — 선행: `AUTH-04`, `PTY-04`.
-  - 구현: 로비 요약/파티 상세/사용자 알림 그룹을 나누고 구독 때 서버가 접근 권한을 검사한다. 연결 제한·메시지 크기·빈도 제한·로그의 토큰 제거를 적용한다.
-  - 완료 기준: 사용자가 다른 사람의 userId나 임의 partyId로 비공개 그룹에 들어갈 수 없다. 강퇴·로그아웃·정지 이후 전용 이벤트가 전달되지 않는다. 연결 종료만으로 파티 참가를 취소하지 않는다.
+- [ ] **RT-01 | P2 | 상태 전달 방식 선택·인증된 조회와 구독** — 선행: `AUTH-04`, `PTY-04`.
+  - 구현: SSE/WebSocket/주기적 조회 중 방식을 결정하고 선택 이유·허용 지연·API 계약을 기록한다. 로비 요약/파티 상세/사용자 알림의 공개 범위를 나누고 조회·구독 때 서버가 접근 권한을 검사한다. 선택한 방식에 맞춰 연결 또는 요청 제한, 메시지·응답 크기와 빈도 제한, 로그의 토큰 제거를 적용한다.
+  - 완료 기준: 사용자가 다른 사람의 userId나 임의 partyId로 비공개 정보를 조회·구독할 수 없다. 강퇴·로그아웃·정지 이후 전용 정보가 전달되지 않는다. 연결 종료나 조회 중단만으로 파티 참가를 취소하지 않는다. 정한 갱신 지연과 부하 목표를 검증한다.
 
 - [ ] **RT-02 | P2 | 커밋 이후 이벤트·재접속 복구** — 선행: `RT-01`, `FND-06`, `PTY-02~03`.
-  - 구현: PartyCreated, MemberJoined, MemberLeft, MemberKicked, PartyFull, PartyClosed와 필요한 상태 변경 이벤트를 커밋 후 발행한다. eventId·partyId·version·occurredAt을 포함하고 공개 요약과 참가자 payload를 분리한다.
-  - 완료 기준: 재연결은 최신 REST 스냅샷으로 복구하고 누락·중복·역순 이벤트는 버전으로 처리한다. 전송 실패로 DB 참가를 롤백하지 않는다. 다중 서버 배포 시 backplane/공유 전송 구성을 검증한다.
+  - 구현: PartyCreated, MemberJoined, MemberLeft, MemberKicked, PartyFull, PartyClosed와 필요한 상태 변경 이벤트를 커밋 후 내부 발행한다. eventId·partyId·version·occurredAt을 포함한다. SSE/WebSocket을 선택하면 공개 요약과 참가자 payload를 분리해 전달하고, 주기적 조회를 선택하면 최신 상태·버전을 REST로 제공한다.
+  - 완료 기준: 재연결 또는 조회 재개는 최신 REST 스냅샷으로 복구한다. 이벤트 전달을 사용할 경우 누락·중복·역순 이벤트를 버전으로 처리한다. 전송 실패로 DB 참가를 롤백하지 않는다. 다중 서버 배포 시 어느 인스턴스에 접속해도 상태를 복구하고 필요한 알림을 받도록 전달·조회 구성을 검증한다.
 
 ## LCG API 초안
 
@@ -51,6 +55,6 @@ Member: Active → Left / Kicked
 - `DELETE /api/v1/parties/{partyId}/members/me`, `DELETE /api/v1/parties/{partyId}/members/{userId}`
 - `PUT /api/v1/parties/{partyId}/slots/{position}`, `POST /api/v1/parties/{partyId}/transfer-host`
 - `POST /api/v1/parties/{partyId}/start`, `/close`, `/cancel`
-- SignalR: `/hubs/parties`, 사용자 알림은 `/hubs/notifications`
+- 상태 전달용 경로·구독 또는 조회 계약은 `RT-01`에서 통신 방식 선택 후 확정한다.
 
-상태 변경은 초기에는 REST로 수행하고 SignalR은 변경 전달에 집중한다. 요청 actor는 인증 컨텍스트에서 읽으며 body의 userId로 행동 주체를 정하지 않는다.
+상태 변경은 REST로 수행한다. 요청 actor는 인증 컨텍스트에서 읽으며 body의 userId로 행동 주체를 정하지 않는다.

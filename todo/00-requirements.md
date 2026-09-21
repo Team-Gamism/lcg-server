@@ -24,12 +24,23 @@
 | 15 | 댓글·파티 충원·내전 알림, 읽음·실시간 전달 | P2 `NTF-01~02` |
 | 16 | 관심 모드 저장, 신규 파티 알림 | P3 `NTF-03` |
 | 17~18 | 홈 요약과 전체 사용자 흐름 | P1 `HOME-01`; P2/P3 `HOME-02`, 단계별 QA |
-| 19 | Modular Monolith, ASP.NET Core, PostgreSQL, Redis, SignalR | P0 `FND-02~06`; P2 `RT-01` |
+| 19 | Modular Monolith, Kotlin + Spring Boot, PostgreSQL, Redis로 기술 선택 변경 반영; 실시간 통신 방식은 P2 결정 | P0 `FND-02~05`; P2 `FND-06`, `RT-01` |
 | 20~22 | Riot 호출 계층, 캐시·제한·실패 처리·정적 데이터 | P0 `RIOT-01~02`; P1 `RIOT-04~05` |
 | 23 | Account/League/Party/Inhouse/Community/Social | 위 모듈 + P3 `SOC-01~02`; 차단의 상세 동작은 보완 제안 |
 | 24 | 5단계 개발 로드맵, LCG CUP | [전체 순서](README.md), P4 `EXT-01~04` |
 
 기획에 직접 명시되지 않은 운영자 처리, 탈퇴, 작업 재시도, 감사 기록, CI·백업은 실제 운영을 위한 **보완 제안**이다. 영상 직접 업로드, 채팅/DM, 결제, 자체 MMR, 자동 실력 밸런싱은 현재 구현 범위에 넣지 않는다.
+
+## 채택한 기술 방향
+
+2026-09-21 대화에서 개발·유지보수 편의를 우선해 다음 방향을 선택했다.
+
+- 서버는 **Kotlin + Spring Boot**로 구현한다. [Spring Boot의 Kotlin 지원](https://docs.spring.io/spring-boot/reference/features/kotlin.html)을 기준으로 프로젝트를 구성한다.
+- PostgreSQL, Redis, Modular Monolith 구조를 사용한다. DB·캐시·모듈별 저장 책임은 아래 원칙을 따른다.
+- 학교 OAuth는 [DataGSM 공식 Java/Kotlin SDK](https://github.com/themoment-team/datagsm-oauth-sdk-java)를 사용한다. SDK의 버전·PKCE·토큰 교환·사용자 응답 호환성을 `AUTH-01`에서 확인하고, LCG 회원·세션·권한 정책은 애플리케이션에서 구현한다.
+- MVP는 HTTP API 중심으로 구현한다. 파티·내전·알림의 상태 전달 방식은 P2의 `RT-01`에서 결정하며, WebSocket 도입을 미리 확정하지 않는다.
+
+Gradle Kotlin DSL과 Spring Data JPA 등 구체적인 구성은 [서버 기반 문서](01-foundation.md)의 제안으로 두고 착수 시 확정한다. JDK·Kotlin·Spring Boot·SDK·DB·Redis 버전도 호환성과 지원 상태를 확인한 뒤 고정한다. 기술 방향 선택만으로 `FND-01` 전체나 아래 정책 결정이 완료된 것은 아니다.
 
 ## 구현 전에 결정할 사항
 
@@ -65,12 +76,12 @@
 | Statistics/Social | StatisticsAggregate, WeeklySummary, Activity, UserBlock | 집계 버전·기간·표본·동의, 차단 방향·범위 |
 | Tournament(후속) | Tournament, Team, Roster, Registration, BracketMatch | 명단 잠금·대진 버전·중복 결과 방지 |
 
-PostgreSQL을 회원·참가·결과의 원장으로 사용한다. Redis는 캐시·세션·일시적인 제한/동기화 용도다. Redis 파티 캐시 소실이나 SignalR 연결 종료가 참가자 탈퇴로 이어져서는 안 된다.
+PostgreSQL을 회원·참가·결과의 원장으로 사용한다. Redis는 캐시·세션·일시적인 제한/동기화 용도다. Redis 파티 캐시 소실이나 상태 전달 연결 종료가 참가자 탈퇴로 이어져서는 안 된다.
 
 ## 공통 데이터·권한 원칙
 
 - DB 시간은 UTC, API는 오프셋이 명확한 ISO 8601, 학교 일정/주간 집계는 `Asia/Seoul` 기준으로 계산한다.
 - 인증 없음/인증됨/정지됨/탈퇴함과 작성자/방장/참가자/운영자의 권한을 분리한다. 로그인 여부만으로 수정 권한을 주지 않는다.
-- 프로필·홈·검색·작성자 배지·랭킹·알림·SignalR 모두 동일한 공개 범위를 적용한다. 설정 변경 시 기존 캐시도 무효화한다.
+- 프로필·홈·검색·작성자 배지·랭킹·알림·상태 전달 채널 모두 동일한 공개 범위를 적용한다. 설정 변경 시 기존 캐시도 무효화한다.
 - 모든 목록에 페이지 크기 상한과 안정적인 정렬을 둔다. 공개 ID와 외부 식별자를 구분한다.
 - 재시도 가능한 작업은 중복 실행에도 안전하게 만든다. 참가·추천·결과·알림은 DB 제약과 트랜잭션으로 보장한다.

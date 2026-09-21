@@ -2,9 +2,9 @@
 
 프로젝트명: **LCG (League of Legend Champions GSM)**.
 
-작성일: 2026-09-21. 사용자 제공 서비스 기획서 1~25절과 공식 외부 API 문서를 분석했다. 현재 저장소에는 `README.md`, `LICENSE`만 있으며 서버 구현은 없다. 이 폴더는 **구현 계획**이며 체크되지 않은 항목은 모두 미구현이다.
+작성일: 2026-09-21. 사용자 제공 서비스 기획서 1~25절과 공식 외부 API 문서를 분석했다. 현재 저장소에는 기획·TODO 문서와 저장소 설정만 있으며 서버 구현은 없다. 이 폴더는 **구현 계획**이며 체크되지 않은 항목은 모두 미구현이다.
 
-기획서의 ASP.NET Core + PostgreSQL + Redis + SignalR, Modular Monolith 구성을 기준으로 한다. 문서의 API 경로, 엔티티, 운영 수치와 정책 기본안은 설계 제안이며 확정 명세가 아니다. 프론트엔드 구현은 범위에서 제외하고 서버가 제공할 계약만 정리한다.
+2026-09-21 기술 선택을 반영해 **Kotlin + Spring Boot + PostgreSQL + Redis, Modular Monolith** 구성을 기준으로 한다. 학교 OAuth는 DataGSM 공식 Java/Kotlin SDK를 사용하며, 채택 버전과 실제 계약의 호환성은 구현 전에 검증한다. 실시간 통신 방식은 P2의 `RT-01`에서 결정하고 MVP에는 소켓 도입을 요구하지 않는다. [채택한 기술 방향](00-requirements.md#채택한-기술-방향)을 제외한 API 경로, 엔티티, 운영 수치와 정책 기본안은 설계 제안이며 확정 명세가 아니다. 프론트엔드 구현은 범위에서 제외하고 서버가 제공할 계약만 정리한다.
 
 ## 우선순위
 
@@ -27,7 +27,7 @@ P0는 모두 첫날 끝내라는 뜻이 아니다. `OPS-02`처럼 **공개 출�
 | [02-auth-users.md](02-auth-users.md) | DataGSM OAuth 명세와 인증·프로필 TODO |
 | [03-riot-matches-rankings.md](03-riot-matches-rankings.md) | 계정 등록, Riot 연동 계층, 전적, 학교 랭킹 |
 | [04-community-home.md](04-community-home.md) | 게시글·댓글·추천·신고·클립·홈 |
-| [05-parties-realtime.md](05-parties-realtime.md) | 듀오·5인 모집, 참가 경쟁 처리, SignalR |
+| [05-parties-realtime.md](05-parties-realtime.md) | 듀오·5인 모집, 참가 경쟁 처리, P2 상태 전달 방식 선택 |
 | [06-inhouses.md](06-inhouses.md) | 내전 모집·팀 구성·결과·동의 |
 | [07-notifications-statistics-social.md](07-notifications-statistics-social.md) | 알림·통계·Weekly·관심 모드·차단·활동 |
 | [08-riot-production-tournament.md](08-riot-production-tournament.md) | RSO 전환·Tournament API·LCG CUP |
@@ -42,7 +42,7 @@ P0는 모두 첫날 끝내라는 뜻이 아니다. `OPS-02`처럼 **공개 출�
 3. `AUTH-01~05`, `USER-01~03`으로 학교 로그인, 재로그인, 프로필·공개 범위를 완성한다.
 4. `RIOT-02~05`, `MAT-01~03`, `RANK-01~02`로 Riot 등록·조회·학교 랭킹을 연결한다. 랭킹 출시에는 `D-02` 해결이 필요하다.
 5. `COM-01~04`, `HOME-01`, `USER-04`와 `QA-01~02`, `OPS-02~03`으로 MVP를 검증한다. 장기 학교 토큰 보관이 필요하다면 `AUTH-06`도 포함한다.
-6. `FND-06`, 파티·내전, `RT-01~02`, `NTF-01~02`, `QA-03`으로 Phase 2를 완성한다.
+6. `FND-06`, 파티·내전, `RT-01~02`, `NTF-01~02`, `QA-03`으로 Phase 2를 완성한다. `RT-01`에서 허용 지연·서버 부하·운영 복잡도를 기준으로 SSE, WebSocket, 주기적 조회 중 상태 전달 방식을 결정한다.
 7. 통계·Weekly·클립·인기글·관심 알림·활동·차단과 `QA-04`를 진행한다.
 8. 외부 승인을 확보하면 RSO·Tournament API·LCG CUP을 구현한다. 계정 소유 확인에 RSO가 필요하면 `EXT-01`을 앞당긴다.
 
