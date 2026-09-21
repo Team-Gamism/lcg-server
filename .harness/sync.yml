@@ -1,6 +1,22 @@
-enabled: true
-
 groups:
   - codex
 
+overrides:
+  codex/hooks/dispatcher: true
+  codex/hooks-json: true
+  codex/hooks/command-guard: true
+  codex/hooks/logging: true
+  codex/hooks/ktlint: true
+  codex/hooks/spotless: true
+  codex/hooks/secret-guard: true
+  codex/skills/nextjs-fsd-architecture: false
+  codex/skills/nextjs-package-boundaries: false
+  codex/skills/nextjs-turborepo-fsd: false
+  codex/skills/tailwind-shadcn: false
+  codex/skills/tanstack-query-zod: false
+  codex/agents/frontend-convention-validator: false
+
+branch_prefix: harness-sync/
 language: ko
+base_branch: develop
+pr_label: true
