@@ -40,7 +40,7 @@
 - 학교 OAuth는 [DataGSM 공식 Java/Kotlin SDK](https://github.com/themoment-team/datagsm-oauth-sdk-java)를 사용한다. SDK의 버전·PKCE·토큰 교환·사용자 응답 호환성을 `AUTH-01`에서 확인하고, LCG 회원·세션·권한 정책은 애플리케이션에서 구현한다.
 - MVP는 HTTP API 중심으로 구현한다. 파티·내전·알림의 상태 전달 방식은 P2의 `RT-01`에서 결정하며, WebSocket 도입을 미리 확정하지 않는다.
 
-Gradle Kotlin DSL과 Spring Data JPA 등 구체적인 구성은 [서버 기반 문서](01-foundation.md)의 제안으로 두고 착수 시 확정한다. JDK·Kotlin·Spring Boot·SDK·DB·Redis 버전도 호환성과 지원 상태를 확인한 뒤 고정한다. 기술 방향 선택만으로 `FND-01` 전체나 아래 정책 결정이 완료된 것은 아니다.
+Gradle Kotlin DSL, Spring Data JPA, Flyway와 `cowork-project`를 참고한 도메인별 패키지 구조를 채택했다. JDK·Kotlin·Spring Boot·Gradle·DB·Redis의 적용 버전과 구현 범위는 [서버 기반 문서](01-foundation.md)에 기록했다. DataGSM SDK 버전·계약 검증과 아래 정책 결정은 아직 남아 있으며, 기술 기반 구현만으로 `FND-01` 전체를 완료 처리하지 않는다.
 
 ## 구현 전에 결정할 사항
 
