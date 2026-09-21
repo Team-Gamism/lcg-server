@@ -1,0 +1,6 @@
+enabled: true
+
+groups:
+  - codex
+
+language: ko
