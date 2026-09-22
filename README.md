@@ -56,8 +56,40 @@ CI와 동일한 검증·패키징 명령은 `./gradlew.bat check integrationTest
 
 ## 현재 구현 범위
 
-서버 실행 기반, 상태 API, JPA·Flyway의 최초 회원/학교 식별 스키마, Redis 연결, 공통 오류 처리와 Spring Security 기본 규칙까지 구현했습니다. 실제 로그인과 DataGSM SDK 연동은 다음 단계입니다. 성공 응답은 DTO를 반환하며 오류는 `ProblemDetail`의 `code`, `traceId`와 HTTP 상태로 구분합니다. 응답 헤더 `X-Request-ID`를 로그 조회에 사용할 수 있습니다.
+서버 기반과 DataGSM SDK 1.6.0 기반 PKCE 로그인, 재학생 자격 검사, Redis 세션, 내 회원 정보 조회, 현재/전체 세션 로그아웃을 구현했습니다. 성공 응답은 DTO를 반환하며 오류는 `ProblemDetail`의 `code`, `traceId`와 HTTP 상태로 구분합니다. 응답 헤더 `X-Request-ID`를 로그 조회에 사용할 수 있습니다.
 
-상태 API와 로컬 문서 외의 API는 인증이 필요합니다. `local` 프로필에서만 Swagger를 공개하며, liveness와 readiness는 저장소 상세 정보를 반환하지 않습니다. 진행 상황과 남은 작업은 [서버 기반 TODO](todo/01-foundation.md)를 참고하세요.
+상태·로그인 시작·콜백·CSRF 토큰 API는 공개됩니다. 나머지 API는 인증이 필요하며 `local` 프로필에서만 Swagger를 공개합니다. liveness와 readiness는 저장소 상세 정보를 반환하지 않습니다. 진행 상황은 [서버 기반 TODO](todo/01-foundation.md)와 [인증 TODO](todo/02-auth-users.md)를 참고하세요.
 
 운영 환경 변수의 형식은 [.env.example](.env.example)을 참고하세요. 해당 파일의 값은 예시이며 Spring이 자동으로 읽지 않습니다.
+
+## DataGSM 로그인 실행
+
+기본값은 `DATAGSM_ENABLED=false`입니다. 자격 증명 없이도 서버와 모의 DataGSM 테스트를 실행할 수 있으며, 비활성 상태의 로그인 시작 요청은 `503 SERVICE_UNAVAILABLE`을 반환합니다.
+
+1. [DataGSM 클라이언트 관리](https://www.datagsm.kr/clients)에서 개발 클라이언트를 등록합니다. 권한은 `datagsm:self_read`, callback은 `http://localhost:8080/api/v1/auth/school/callback`으로 설정합니다.
+2. IDE 실행 환경이나 로컬 셸에 아래 변수를 지정하고 서버를 실행합니다. 실제 secret은 저장소에 넣지 않습니다.
+
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "local"
+$env:DATAGSM_ENABLED = "true"
+$env:DATAGSM_CLIENT_ID = "발급받은-client-id"
+$env:DATAGSM_CLIENT_SECRET = "발급받은-client-secret"
+./gradlew.bat bootRun
+```
+
+3. 브라우저에서 `http://localhost:8080/api/v1/auth/school/login`을 엽니다. 성공하면 LCG 세션 쿠키가 발급되고 기본값인 `http://localhost:3000`으로 이동합니다. 이동 주소는 `LOGIN_SUCCESS_URI`로 고정하며 요청의 `returnUrl`은 사용하지 않습니다.
+
+SDK 생성자는 secret을 필수로 요구하지만, 실제 PKCE 코드 교환에는 `code_verifier`만 전송합니다. 학교 access/refresh token은 DB·Redis·브라우저에 저장하지 않습니다. 개발/운영 클라이언트 발급과 실제 학교 계정의 브라우저 로그인은 별도로 확인해야 합니다.
+
+| API | 용도 |
+| --- | --- |
+| `GET /api/v1/auth/school/login` | DataGSM 로그인으로 이동 |
+| `GET /api/v1/auth/school/callback` | 서버에서 코드 교환 및 LCG 세션 발급 |
+| `GET /api/v1/auth/csrf` | 변경 요청용 `headerName`, `token` 조회 |
+| `GET /api/v1/me` | LCG 회원 `id`, `role`, 검증된 `grade` 조회 |
+| `POST /api/v1/auth/logout` | 현재 LCG 세션 종료 |
+| `POST /api/v1/auth/logout-all` | 기존 모든 LCG 세션의 다음 요청 차단 |
+
+프론트의 API 호출은 `credentials: "include"`를 사용합니다. 로그인 후 CSRF 토큰을 새로 받아 변경 요청의 `X-CSRF-TOKEN` 헤더에 넣습니다. 운영은 같은 사이트의 HTTPS 웹/API, 정확한 `CORS_ALLOWED_ORIGINS`, HttpOnly/Secure/SameSite=Lax 쿠키를 전제로 합니다. 로컬에서만 Secure를 해제합니다.
+
+세션은 30분 미사용 또는 로그인 후 최대 8시간에 만료됩니다. 매 인증 요청에서 DB 회원 상태·학교 자격·세션 버전을 검사합니다. 전체 로그아웃은 버전을 증가시켜 기존 세션을 거부하고, Redis의 남은 세션 데이터는 만료 시 제거됩니다. 운영자 권한은 LCG DB에서 별도 관리하며 학교의 `role`에서 가져오지 않습니다.
