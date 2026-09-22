@@ -7,6 +7,7 @@ import com.lcg.global.redis.RedisKeys
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.flywaydb.core.Flyway
+import org.flywaydb.core.api.MigrationVersion
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -27,7 +28,10 @@ import java.util.UUID
 
 @Tag("integration")
 @ActiveProfiles("local")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = ["lcg.environment=integration"])
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = ["lcg.environment=integration", "lcg.datagsm.enabled=false"],
+)
 class InfrastructureIntegrationTest {
     @LocalServerPort
     private var port: Int = 0
@@ -42,8 +46,30 @@ class InfrastructureIntegrationTest {
     @Test
     fun `migration validates and repeated startup has nothing to apply`() {
         flyway.validate()
-        assertThat(flyway.info().current().version.version).isEqualTo("1")
+        assertThat(flyway.info().current().version.version).isEqualTo("2")
         assertThat(flyway.migrate().migrationsExecuted).isZero()
+    }
+
+    @Test
+    fun `V2 upgrades existing V1 users without granting school eligibility`() {
+        val schema = "auth_migration_${UUID.randomUUID().toString().replace("-", "") }"
+        val userId = UUID.randomUUID()
+        try {
+            val v1 = Flyway.configure().dataSource(jdbc.dataSource!!).schemas(schema)
+                .target(MigrationVersion.fromVersion("1")).load()
+            v1.migrate()
+            jdbc.update("INSERT INTO $schema.users (id, created_at, updated_at) VALUES (?, now(), now())", userId)
+            jdbc.update("INSERT INTO $schema.school_identities (id, user_id, provider, provider_user_id, created_at, updated_at) VALUES (?, ?, 'DATAGSM', 'migration-test', now(), now())", UUID.randomUUID(), userId)
+            val v2 = Flyway.configure().dataSource(jdbc.dataSource!!).schemas(schema).load()
+            assertThat(v2.migrate().migrationsExecuted).isEqualTo(1)
+            v2.validate()
+            val row = jdbc.queryForMap("SELECT status, role, session_version FROM $schema.users WHERE id=?", userId)
+            assertThat(row).containsEntry("status", "ACTIVE").containsEntry("role", "MEMBER").containsEntry("session_version", 0L)
+            assertThat(jdbc.queryForObject("SELECT school_eligible FROM $schema.school_identities WHERE user_id=?", Boolean::class.java, userId)).isFalse()
+        } finally {
+            // Only the unique schema created by this test is removed.
+            jdbc.execute("DROP SCHEMA IF EXISTS $schema CASCADE")
+        }
     }
 
     @Test
@@ -101,6 +127,7 @@ class InfrastructureIntegrationTest {
             assertThat(api.statusCode()).isEqualTo(200)
             assertThat(api.body()).contains("/api/v1/system/ping")
             assertThat(get(client, "/api/v1/private").statusCode()).isEqualTo(401)
+            assertThat(get(client, "/api/v1/auth/school/login").statusCode()).isEqualTo(503)
             // ContractTestController must never be discovered by the production component scan.
             assertThat(api.body()).doesNotContain("/api/v1/test/")
         }

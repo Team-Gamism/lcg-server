@@ -28,6 +28,9 @@ spring:
         enabled: false
   mvc:
     log-request-details: false
+  session:
+    redis:
+      namespace: lcg:${lcg.environment}:session:v1
   servlet:
     multipart:
       enabled: false
@@ -75,6 +78,13 @@ springdoc:
 
 lcg:
   environment: ${LCG_ENVIRONMENT}
+  datagsm:
+    enabled: ${DATAGSM_ENABLED:false}
+    client-id: ${DATAGSM_CLIENT_ID:}
+    client-secret: ${DATAGSM_CLIENT_SECRET:}
+    callback-uri: ${DATAGSM_CALLBACK_URI:}
+    success-uri: ${LOGIN_SUCCESS_URI:}
+    secure-cookies: ${server.servlet.session.cookie.secure}
   security:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
     public-docs: false

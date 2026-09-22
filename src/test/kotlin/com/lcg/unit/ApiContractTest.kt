@@ -3,6 +3,7 @@ package com.lcg.unit
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import com.lcg.domain.system.presentation.controller.SystemController
+import com.lcg.domain.auth.service.QueryAuthenticatedMemberService
 import com.lcg.domain.system.service.impl.QuerySystemStatusServiceImpl
 import com.lcg.global.config.SecurityConfig
 import com.lcg.global.config.SecurityProperties
@@ -25,6 +26,7 @@ import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.options
@@ -50,6 +52,7 @@ import org.springframework.web.bind.annotation.RestController
     ContractTestController::class,
 )
 class ApiContractTest(@Autowired private val mvc: MockMvc) {
+    @MockitoBean private lateinit var members: QueryAuthenticatedMemberService
     @Test
     fun `ping is public and assigns a server-generated request id`() {
         val response = mvc.get("/api/v1/system/ping") {
