@@ -56,7 +56,7 @@ CI와 동일한 검증·패키징 명령은 `./gradlew.bat check integrationTest
 
 ## 현재 구현 범위
 
-서버 기반과 DataGSM SDK 1.6.0 기반 PKCE 로그인, 재학생 자격 검사, Redis 세션, 내 회원 정보 조회, 현재/전체 세션 로그아웃을 구현했습니다. 성공 응답은 DTO를 반환하며 오류는 `ProblemDetail`의 `code`, `traceId`와 HTTP 상태로 구분합니다. 응답 헤더 `X-Request-ID`를 로그 조회에 사용할 수 있습니다.
+서버 기반과 DataGSM SDK 1.6.0 기반 PKCE 로그인, 재학생 자격 검사, Redis 세션, 내 프로필 조회·수정, 현재/전체 세션 로그아웃을 구현했습니다. 성공 응답은 DTO를 반환하며 오류는 `ProblemDetail`의 `code`, `traceId`와 HTTP 상태로 구분합니다. 응답 헤더 `X-Request-ID`를 로그 조회에 사용할 수 있습니다.
 
 상태·로그인 시작·콜백·CSRF 토큰 API는 공개됩니다. 나머지 API는 인증이 필요하며 `local` 프로필에서만 Swagger를 공개합니다. liveness와 readiness는 저장소 상세 정보를 반환하지 않습니다. 진행 상황은 [서버 기반 TODO](todo/01-foundation.md)와 [인증 TODO](todo/02-auth-users.md)를 참고하세요.
 
@@ -86,10 +86,13 @@ SDK 생성자는 secret을 필수로 요구하지만, 실제 PKCE 코드 교환�
 | `GET /api/v1/auth/school/login` | DataGSM 로그인으로 이동 |
 | `GET /api/v1/auth/school/callback` | 서버에서 코드 교환 및 LCG 세션 발급 |
 | `GET /api/v1/auth/csrf` | 변경 요청용 `headerName`, `token` 조회 |
-| `GET /api/v1/me` | LCG 회원 `id`, `role`, 검증된 `grade` 조회 |
+| `GET /api/v1/me` | 본인의 학번 이름, Riot ID, 포지션, 소개와 인증 정보 조회 |
+| `PATCH /api/v1/me` | Riot ID(`gameName#tagLine`), 주/부 포지션, 소개 수정 |
 | `POST /api/v1/auth/logout` | 현재 LCG 세션 종료 |
 | `POST /api/v1/auth/logout-all` | 기존 모든 LCG 세션의 다음 요청 차단 |
 
 프론트의 API 호출은 `credentials: "include"`를 사용합니다. 로그인 후 CSRF 토큰을 새로 받아 변경 요청의 `X-CSRF-TOKEN` 헤더에 넣습니다. 운영은 같은 사이트의 HTTPS 웹/API, 정확한 `CORS_ALLOWED_ORIGINS`, HttpOnly/Secure/SameSite=Lax 쿠키를 전제로 합니다. 로컬에서만 Secure를 해제합니다.
+
+로그인 때 DataGSM의 `studentNumber`와 `name`을 조합한 `학번 이름`을 본인 프로필에 갱신합니다. Riot ID는 형식만 확인한 미검증 표시값이며, 이후 Riot 계정 등록에서 소유 여부를 검증합니다. 다른 회원에게 프로필을 공개하는 API와 공개 범위 설정은 아직 없습니다.
 
 세션은 30분 미사용 또는 로그인 후 최대 8시간에 만료됩니다. 매 인증 요청에서 DB 회원 상태·학교 자격·세션 버전을 검사합니다. 전체 로그아웃은 버전을 증가시켜 기존 세션을 거부하고, Redis의 남은 세션 데이터는 만료 시 제거됩니다. 운영자 권한은 LCG DB에서 별도 관리하며 학교의 `role`에서 가져오지 않습니다.

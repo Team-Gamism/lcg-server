@@ -41,7 +41,7 @@ src/test/kotlin/com/lcg/
 | --- | --- | --- |
 | FND-01 | 빌드 버전·패키지 구조·JPA/Flyway·SDK 선택, D-01·D-04 확정 | 나머지 정책, 실제 OAuth 클라이언트 등록 |
 | FND-02 | Gradle Wrapper, JDK 21 toolchain, 환경별 설정, 로컬 Compose, 실행 안내와 검증 완료 | 없음 |
-| FND-03 | User/SchoolIdentity, V1→V2 업그레이드, 회원 상태·역할·세션 버전·학교 검증 정보, 동시 가입 잠금 | 운영 마이그레이션 절차 |
+| FND-03 | User/SchoolIdentity/UserProfile, V1→V3 업그레이드, 회원 상태·역할·세션 버전·학교 검증 정보, 동시 가입 잠금 | 운영 마이그레이션 절차 |
 | FND-04 | Redis 연결·타임아웃, 환경별 키·실제 Spring Session 저장, OAuth state 원자적 소비·TTL | 캐시 복구, 저장소 장애 검증, 분산 요청 합치기 |
 | FND-05 | 상태·인증 API, OpenAPI, CORS·CSRF·회원 상태·역할 검사, ProblemDetail·traceId | 페이지네이션, 요청 크기·빈도 제한, 기능별 소유권 검사 |
 | FND-06 | 미착수 | 영속 작업·Outbox 전체 |
@@ -56,7 +56,7 @@ src/test/kotlin/com/lcg/
 
 검증 결과: `check bootJar`와 `integrationTest` 성공. API 계약 16개, 실제 PostgreSQL·Redis 통합 6개가 모두 통과했다. 빈 DB의 V1 생성, 재실행 시 적용할 마이그레이션 없음, 회원 UTC 저장·고유키·외래키, Redis TTL, 상태 API·OpenAPI를 확인했다. `prod` 프로필의 필수 설정 누락 시 JAR가 종료 코드 1로 실패하는 것도 확인했다. 원격 GitHub Actions 실행 결과는 아직 없다.
 
-2026-09-22 추가 검증: `check integrationTest bootJar` 성공. 전체 52개 테스트에 SDK 계약·인증 통합·기존 V1 회원의 V2 업그레이드를 포함한다. 실제 개발/운영 DataGSM 계정과 원격 CI 검증은 남아 있다.
+2026-09-22 추가 검증: `check integrationTest bootJar` 성공. 전체 55개 테스트에 SDK 계약·인증/프로필 통합·기존 V1 회원의 V3 업그레이드를 포함한다. 실제 개발/운영 DataGSM 계정과 원격 CI 검증은 남아 있다.
 
 ## TODO
 

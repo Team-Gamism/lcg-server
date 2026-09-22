@@ -46,12 +46,12 @@ class InfrastructureIntegrationTest {
     @Test
     fun `migration validates and repeated startup has nothing to apply`() {
         flyway.validate()
-        assertThat(flyway.info().current().version.version).isEqualTo("2")
+        assertThat(flyway.info().current().version.version).isEqualTo("3")
         assertThat(flyway.migrate().migrationsExecuted).isZero()
     }
 
     @Test
-    fun `V2 upgrades existing V1 users without granting school eligibility`() {
+    fun `V2 and V3 upgrade existing users without granting eligibility or a completed profile`() {
         val schema = "auth_migration_${UUID.randomUUID().toString().replace("-", "") }"
         val userId = UUID.randomUUID()
         try {
@@ -60,12 +60,18 @@ class InfrastructureIntegrationTest {
             v1.migrate()
             jdbc.update("INSERT INTO $schema.users (id, created_at, updated_at) VALUES (?, now(), now())", userId)
             jdbc.update("INSERT INTO $schema.school_identities (id, user_id, provider, provider_user_id, created_at, updated_at) VALUES (?, ?, 'DATAGSM', 'migration-test', now(), now())", UUID.randomUUID(), userId)
-            val v2 = Flyway.configure().dataSource(jdbc.dataSource!!).schemas(schema).load()
+            val v2 = Flyway.configure().dataSource(jdbc.dataSource!!).schemas(schema)
+                .target(MigrationVersion.fromVersion("2")).load()
             assertThat(v2.migrate().migrationsExecuted).isEqualTo(1)
             v2.validate()
             val row = jdbc.queryForMap("SELECT status, role, session_version FROM $schema.users WHERE id=?", userId)
             assertThat(row).containsEntry("status", "ACTIVE").containsEntry("role", "MEMBER").containsEntry("session_version", 0L)
             assertThat(jdbc.queryForObject("SELECT school_eligible FROM $schema.school_identities WHERE user_id=?", Boolean::class.java, userId)).isFalse()
+            val v3 = Flyway.configure().dataSource(jdbc.dataSource!!).schemas(schema).load()
+            assertThat(v3.migrate().migrationsExecuted).isEqualTo(1)
+            v3.validate()
+            val profile = jdbc.queryForMap("SELECT school_name, riot_id FROM $schema.user_profiles WHERE user_id=?", userId)
+            assertThat(profile).containsEntry("school_name", null).containsEntry("riot_id", null)
         } finally {
             // Only the unique schema created by this test is removed.
             jdbc.execute("DROP SCHEMA IF EXISTS $schema CASCADE")

@@ -64,6 +64,7 @@ class SchoolAuthenticationIntegrationTest {
         browsers.forEach(Browser::close)
         subjects.forEach { subject ->
             val ids = jdbc.queryForList("SELECT user_id FROM school_identities WHERE provider='DATAGSM' AND provider_user_id=?", UUID::class.java, subject.toString())
+            ids.forEach { jdbc.update("DELETE FROM user_profiles WHERE user_id=?", it) }
             jdbc.update("DELETE FROM school_identities WHERE provider='DATAGSM' AND provider_user_id=?", subject.toString())
             ids.forEach { jdbc.update("DELETE FROM users WHERE id=?", it) }
         }
@@ -91,7 +92,8 @@ class SchoolAuthenticationIntegrationTest {
         val me = browser.get("/api/v1/me")
         assertThat(me.statusCode()).isEqualTo(200)
         assertThat(mapper.readTree(me.body()).path("role").asString()).isEqualTo("MEMBER") // provider is ADMIN
-        assertThat(me.body()).contains("\"grade\":2").doesNotContain("school-token", "refresh", "email", "student", "provider")
+        assertThat(me.body()).contains("\"grade\":2", "\"name\":\"2101 테스트 학생\"")
+            .doesNotContain("school-token", "refresh", "email", "provider_user_id")
         assertThat(browser.get("/api/v1/me", cookieOverride = "LCGSESSION=$oldCookie").statusCode()).isEqualTo(401)
         assertThat(browser.post("/api/v1/auth/logout").statusCode()).isEqualTo(403)
         assertThat(browser.post("/api/v1/auth/logout", oldCsrf).statusCode()).isEqualTo(403)
@@ -147,11 +149,14 @@ class SchoolAuthenticationIntegrationTest {
     fun `concurrent first logins create one member and one identity`() {
         val subject = subject()
         val countBefore = jdbc.queryForObject("SELECT count(*) FROM users", Long::class.java)!!
-        val calls = (1..6).map { CompletableFuture.supplyAsync { members.execute(SchoolAccount(subject.toString(), 2, true))!! } }
+        val calls = (1..6).map {
+            CompletableFuture.supplyAsync { members.execute(SchoolAccount(subject.toString(), 2, true, "2101 동시 가입"))!! }
+        }
         val ids = calls.map { it.join().userId }
         assertThat(ids.distinct()).hasSize(1)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Long::class.java)).isEqualTo(countBefore + 1)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM school_identities WHERE provider_user_id=?", Long::class.java, subject.toString())).isEqualTo(1)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_profiles WHERE user_id=?", Long::class.java, ids.first())).isEqualTo(1)
     }
 
     @Test
@@ -204,10 +209,11 @@ class SchoolAuthenticationIntegrationTest {
         val existing = login(subject)
         val firstId = mapper.readTree(existing.get("/api/v1/me").body()).path("id").asString()
         val other = browser()
-        assertThat(complete(other, start(other).state, studentCode(subject, grade = 3)).statusCode()).isEqualTo(302)
+        assertThat(complete(other, start(other).state, studentCode(subject, grade = 3, studentNumber = 3202, name = "변경 학생")).statusCode()).isEqualTo(302)
         val updated = mapper.readTree(existing.get("/api/v1/me").body())
         assertThat(updated.path("id").asString()).isEqualTo(firstId)
         assertThat(updated.path("grade").asInt()).isEqualTo(3)
+        assertThat(updated.path("name").asString()).isEqualTo("3202 변경 학생")
         val code = stub.code(DataGsmStub.Reply(userBody = DataGsmStub.student(subject, role = "GRADUATE")))
         assertProblem(complete(other, start(other).state, code), 403, "SCHOOL_MEMBERSHIP_REQUIRED")
         assertThat(existing.get("/api/v1/me").statusCode()).isEqualTo(401)
@@ -246,13 +252,56 @@ class SchoolAuthenticationIntegrationTest {
         assertThat(redis.hasKey(keys.oauthAttempt(attempt.state))).isFalse()
     }
 
+    @Test
+    fun `member updates Riot ID positions and introduction without changing school name`() {
+        val browser = login()
+        val profile = """{"riotId":"Riot Name#0000","primaryPosition":"MID","secondaryPosition":"SUPPORT","introduction":"같이 랭크 해요"}"""
+        assertThat(browser.patch("/api/v1/me", profile).statusCode()).isEqualTo(403)
+
+        val updated = browser.patch("/api/v1/me", profile, csrf(browser))
+        assertThat(updated.statusCode()).isEqualTo(200)
+        val body = mapper.readTree(updated.body())
+        assertThat(body.path("name").asString()).isEqualTo("2101 테스트 학생")
+        assertThat(body.path("riotId").asString()).isEqualTo("Riot Name#0000")
+        assertThat(body.path("primaryPosition").asString()).isEqualTo("MID")
+        assertThat(body.path("secondaryPosition").asString()).isEqualTo("SUPPORT")
+        assertThat(body.path("introduction").asString()).isEqualTo("같이 랭크 해요")
+
+        assertThat(browser.get("/api/v1/me").body()).contains("Riot Name#0000", "2101 테스트 학생")
+    }
+
+    @Test
+    fun `profile rejects malformed Riot IDs and inconsistent positions`() {
+        val browser = login()
+        assertProblem(
+            browser.patch("/api/v1/me", """{"riotId":"not-a-riot-id","primaryPosition":"TOP"}""", csrf(browser)),
+            400,
+            "INVALID_REQUEST",
+        )
+        assertProblem(
+            browser.patch("/api/v1/me", """{"primaryPosition":"MID","secondaryPosition":"MID"}""", csrf(browser)),
+            400,
+            "INVALID_REQUEST",
+        )
+        assertProblem(
+            browser.patch("/api/v1/me", """{"introduction":"${"x".repeat(501)}"}""", csrf(browser)),
+            400,
+            "INVALID_REQUEST",
+        )
+    }
+
     private fun login(subject: Long = subject()): Browser = browser().also {
         assertThat(complete(it, start(it).state, studentCode(subject)).statusCode()).isEqualTo(302)
     }
 
     private fun browser() = Browser().also(browsers::add)
     private fun subject() = ThreadLocalRandom.current().nextLong(1_000_000_000L, 9_000_000_000L).also(subjects::add)
-    private fun studentCode(subject: Long = subject(), grade: Int = 2) = stub.code(DataGsmStub.Reply(userBody = DataGsmStub.student(subject, grade)))
+    private fun studentCode(
+        subject: Long = subject(),
+        grade: Int = 2,
+        studentNumber: Int = 2101,
+        name: String = "테스트 학생",
+    ) = stub.code(DataGsmStub.Reply(userBody = DataGsmStub.student(subject, grade, studentNumber = studentNumber, name = name)))
     private fun csrf(browser: Browser): String {
         val response = browser.get("/api/v1/auth/csrf")
         assertThat(response.statusCode()).isEqualTo(200)
@@ -281,12 +330,20 @@ class SchoolAuthenticationIntegrationTest {
         private val client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build()
         fun get(path: String, cookieOverride: String? = null) = send(path, "GET", null, cookieOverride)
         fun post(path: String, csrf: String? = null) = send(path, "POST", csrf, null)
-        private fun send(path: String, method: String, csrf: String?, cookieOverride: String?): HttpResponse<String> {
+        fun patch(path: String, body: String, csrf: String? = null) = send(path, "PATCH", csrf, null, body)
+        private fun send(
+            path: String,
+            method: String,
+            csrf: String?,
+            cookieOverride: String?,
+            body: String? = null,
+        ): HttpResponse<String> {
             val request = HttpRequest.newBuilder(URI("http://localhost:$port$path")).timeout(Duration.ofSeconds(10))
-                .method(method, HttpRequest.BodyPublishers.noBody())
+                .method(method, body?.let(HttpRequest.BodyPublishers::ofString) ?: HttpRequest.BodyPublishers.noBody())
             val cookie = cookieOverride ?: cookies.entries.joinToString("; ") { "${it.key}=${it.value}" }
             if (cookie.isNotEmpty()) request.header("Cookie", cookie)
             if (csrf != null) request.header("X-CSRF-TOKEN", csrf)
+            if (body != null) request.header("Content-Type", "application/json")
             val response = client.send(request.build(), HttpResponse.BodyHandlers.ofString())
             if (cookieOverride == null) response.headers().allValues("Set-Cookie").flatMap(HttpCookie::parse).forEach {
                 if (it.maxAge == 0L) cookies.remove(it.name) else cookies[it.name] = it.value

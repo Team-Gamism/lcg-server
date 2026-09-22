@@ -7,4 +7,9 @@ interface SchoolOAuthClient {
 
 // Deliberately omit generated toString methods for values containing OAuth credentials.
 class SchoolAuthorization(val url: String, val verifier: String)
-class SchoolAccount(val providerUserId: String, val grade: Int?, val eligible: Boolean)
+class SchoolAccount(
+    val providerUserId: String,
+    val grade: Int?,
+    val eligible: Boolean,
+    val schoolName: String? = null,
+)

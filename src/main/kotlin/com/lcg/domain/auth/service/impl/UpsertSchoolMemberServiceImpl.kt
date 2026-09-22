@@ -7,7 +7,9 @@ import com.lcg.domain.schoolIdentity.entity.SchoolIdentity
 import com.lcg.domain.schoolIdentity.entity.SchoolIdentityProvider.DATAGSM
 import com.lcg.domain.schoolIdentity.repository.SchoolIdentityRepository
 import com.lcg.domain.user.entity.User
+import com.lcg.domain.user.entity.UserProfile
 import com.lcg.domain.user.entity.UserStatus
+import com.lcg.domain.user.repository.UserProfileRepository
 import com.lcg.domain.user.repository.UserRepository
 import com.lcg.global.exception.ApiErrorCode
 import com.lcg.global.exception.ExpectedException
@@ -19,6 +21,7 @@ import java.time.Instant
 class UpsertSchoolMemberServiceImpl(
     private val identities: SchoolIdentityRepository,
     private val users: UserRepository,
+    private val profiles: UserProfileRepository,
 ) : UpsertSchoolMemberService {
     @Transactional(timeout = 5)
     override fun execute(account: SchoolAccount): AuthenticatedMember? {
@@ -38,8 +41,11 @@ class UpsertSchoolMemberServiceImpl(
             return null
         }
         val grade = account.grade ?: throw ExpectedException(ApiErrorCode.UPSTREAM_ERROR)
+        val schoolName = account.schoolName ?: throw ExpectedException(ApiErrorCode.UPSTREAM_ERROR)
         val user = existing?.user ?: users.save(User())
         if (user.status != UserStatus.ACTIVE) throw ExpectedException(ApiErrorCode.FORBIDDEN)
+        val profile = profiles.findById(user.id).orElseGet { profiles.save(UserProfile(user.id)) }
+        profile.updateSchoolName(schoolName, now)
         val identity = existing ?: SchoolIdentity(user = user, provider = DATAGSM, providerUserId = account.providerUserId)
         identity.schoolEligible = true
         identity.verifiedGrade = grade

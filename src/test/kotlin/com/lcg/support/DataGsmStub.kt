@@ -72,7 +72,13 @@ class DataGsmStub : AutoCloseable {
     data class CapturedRequest(val path: String, val headers: Map<String, List<String>>, val body: String)
 
     companion object {
-        fun student(subject: Long = 101, grade: Int = 2, role: String = "GENERAL_STUDENT", leave: String = "false") =
-            """{"id":$subject,"email":"private@gsm.hs.kr","role":"ADMIN","status":"ACTIVE","objectType":"STUDENT","student":{"id":999,"name":"private-name","grade":$grade,"role":"$role","isLeaveSchool":$leave}}"""
+        fun student(
+            subject: Long = 101,
+            grade: Int = 2,
+            role: String = "GENERAL_STUDENT",
+            leave: String = "false",
+            studentNumber: Int = 2101,
+            name: String = "테스트 학생",
+        ) = """{"id":$subject,"email":"private@gsm.hs.kr","role":"ADMIN","status":"ACTIVE","objectType":"STUDENT","student":{"id":999,"name":"$name","studentNumber":$studentNumber,"grade":$grade,"role":"$role","isLeaveSchool":$leave}}"""
     }
 }

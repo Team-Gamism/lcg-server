@@ -52,6 +52,7 @@ class DataGsmContractTest {
         val account = adapter.authenticate(code, auth.verifier)
         assertThat(account.providerUserId).isEqualTo("101") // top-level ID, never student.id
         assertThat(account.grade).isEqualTo(2)
+        assertThat(account.schoolName).isEqualTo("2101 테스트 학생")
         assertThat(account.eligible).isTrue()
         val tokenRequest = stub.requests.first()
         val body = mapper.readTree(tokenRequest.body)
@@ -90,6 +91,16 @@ class DataGsmContractTest {
     @Test
     fun `missing leave status and invalid grade fail closed`() {
         listOf(DataGsmStub.student(leave = "null"), DataGsmStub.student(leave = "true"), DataGsmStub.student(grade = 4)).forEach {
+            assertThat(adapter.authenticate(stub.code(DataGsmStub.Reply(userBody = it)), "verifier").eligible).isFalse()
+        }
+    }
+
+    @Test
+    fun `missing student name or student number fails closed`() {
+        listOf(
+            DataGsmStub.student(name = " "),
+            DataGsmStub.student(studentNumber = 0),
+        ).forEach {
             assertThat(adapter.authenticate(stub.code(DataGsmStub.Reply(userBody = it)), "verifier").eligible).isFalse()
         }
     }

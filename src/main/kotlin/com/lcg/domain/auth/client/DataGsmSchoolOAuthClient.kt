@@ -9,6 +9,7 @@ import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient
 import team.themoment.datagsm.sdk.oauth.exception.DataGsmException
 import team.themoment.datagsm.sdk.oauth.model.AccountObjectType
 import team.themoment.datagsm.sdk.oauth.model.AccountStatus
+import team.themoment.datagsm.sdk.oauth.model.Student
 import team.themoment.datagsm.sdk.oauth.model.StudentRole
 import java.io.InterruptedIOException
 
@@ -40,15 +41,28 @@ class DataGsmSchoolOAuthClient(
         val subject = info.id?.takeIf { it > 0 } ?: throw ExpectedException(ApiErrorCode.UPSTREAM_ERROR)
         val student = info.student
         val grade = student?.grade?.takeIf { it in 1..3 }
+        val schoolName = student?.let(::schoolName)
         val eligible = info.status == AccountStatus.ACTIVE && info.objectType == AccountObjectType.STUDENT &&
             student != null && student.getIsLeaveSchool() == false && grade != null &&
-            student.role in setOf(StudentRole.GENERAL_STUDENT, StudentRole.STUDENT_COUNCIL, StudentRole.DORMITORY_MANAGER)
-        // Never map the provider's role to an LCG role or retain its tokens/raw profile.
-        return SchoolAccount(subject.toString(), grade, eligible)
+            schoolName != null && student.role in
+            setOf(
+                StudentRole.GENERAL_STUDENT,
+                StudentRole.STUDENT_COUNCIL,
+                StudentRole.DORMITORY_MANAGER,
+            )
+        return SchoolAccount(subject.toString(), grade, eligible, schoolName)
     }
 
     private fun client(): DataGsmOAuthClient = clients.ifAvailable
         ?: throw ExpectedException(ApiErrorCode.SERVICE_UNAVAILABLE)
+
+    private fun schoolName(student: Student): String? {
+        val studentNumber = student.studentNumber?.takeIf { it in 1000..9999 } ?: return null
+        val name = student.name?.trim()?.takeIf {
+            it.length in 2..50 && it.none(Char::isISOControl)
+        } ?: return null
+        return "$studentNumber $name"
+    }
 
     private fun <T> call(tokenExchange: Boolean = false, action: () -> T): T = try {
         action()
