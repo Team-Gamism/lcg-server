@@ -1,0 +1,178 @@
+name: LCG Production CD
+
+on:
+  workflow_run:
+    workflows: ['LCG Production CI']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag, or full commit SHA to deploy
+        required: true
+        default: main
+        type: string
+      environment:
+        description: GitHub deployment environment
+        required: true
+        default: production
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lcg-deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Resolve deployment revision
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.deployment.outputs.environment }}
+      revision: ${{ steps.deployment.outputs.revision }}
+      short-sha: ${{ steps.deployment.outputs.short-sha }}
+
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.workflow_run.head_sha }}
+
+      - name: Validate deployment request
+        id: deployment
+        env:
+          REQUESTED_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.event.workflow_run.head_sha }}
+          REQUESTED_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+        run: |
+          set -euo pipefail
+
+          case "$REQUESTED_ENVIRONMENT" in
+            staging|production) ;;
+            *) echo "Unsupported deployment environment: $REQUESTED_ENVIRONMENT" >&2; exit 1 ;;
+          esac
+
+          test -n "$REQUESTED_REF"
+          RESOLVED_SHA="$(git rev-parse HEAD)"
+          echo "environment=$REQUESTED_ENVIRONMENT" >> "$GITHUB_OUTPUT"
+          echo "revision=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
+          echo "short-sha=${RESOLVED_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Build deployable JAR
+    needs: prepare
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.revision }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build application
+        run: ./gradlew bootJar --no-daemon
+
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v7
+        with:
+          name: lcg-server-${{ needs.prepare.outputs.short-sha }}
+          path: build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 30
+
+  deploy:
+    name: Deploy to ${{ needs.prepare.outputs.environment }}
+    needs: [prepare, package]
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.prepare.outputs.environment }}
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      DEPLOY_SERVICE: ${{ secrets.DEPLOY_SERVICE }}
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@v8
+        with:
+          name: lcg-server-${{ needs.prepare.outputs.short-sha }}
+          path: artifact
+
+      - name: Validate deployment settings
+        run: |
+          set -euo pipefail
+
+          for setting in DEPLOY_HOST DEPLOY_PORT DEPLOY_USER DEPLOY_SSH_PRIVATE_KEY DEPLOY_KNOWN_HOSTS DEPLOY_PATH DEPLOY_SERVICE HEALTHCHECK_URL; do
+            if [ -z "${!setting}" ]; then
+              echo "Missing required deployment secret: $setting" >&2
+              exit 1
+            fi
+          done
+
+          [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]
+          (( DEPLOY_PORT >= 1 && DEPLOY_PORT <= 65535 ))
+          [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]]
+          [[ "$DEPLOY_PATH" != *..* ]]
+          [[ "$DEPLOY_SERVICE" =~ ^[A-Za-z0-9@_.-]+$ ]]
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+
+      - name: Copy application JAR
+        env:
+          REMOTE_JAR: ${{ secrets.DEPLOY_PATH }}/releases/lcg-server-${{ needs.prepare.outputs.short-sha }}.jar
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH/releases'"
+          scp -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -P "$DEPLOY_PORT" artifact/*.jar "$DEPLOY_USER@$DEPLOY_HOST:$REMOTE_JAR"
+
+      - name: Activate application version
+        env:
+          REMOTE_JAR: ${{ secrets.DEPLOY_PATH }}/releases/lcg-server-${{ needs.prepare.outputs.short-sha }}.jar
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "ln -sfn '$REMOTE_JAR' '$DEPLOY_PATH/current.jar' && sudo systemctl restart '$DEPLOY_SERVICE'"
+
+      - name: Verify readiness
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error --max-time 10 "$HEALTHCHECK_URL/actuator/health/readiness"; then
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
