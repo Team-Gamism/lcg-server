@@ -14,4 +14,8 @@ enum class ApiErrorCode(val status: HttpStatus, val defaultMessage: String) {
     UPSTREAM_ERROR(HttpStatus.BAD_GATEWAY, "외부 서비스 응답을 처리할 수 없습니다."),
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "현재 서비스를 사용할 수 없습니다."),
     UPSTREAM_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "외부 서비스 응답이 지연되고 있습니다."),
+    OAUTH_STATE_INVALID(HttpStatus.BAD_REQUEST, "로그인 요청이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요."),
+    OAUTH_CODE_REJECTED(HttpStatus.BAD_REQUEST, "학교 인증 코드가 유효하지 않습니다. 다시 로그인해 주세요."),
+    OAUTH_DENIED(HttpStatus.FORBIDDEN, "학교 로그인이 취소되거나 거절되었습니다."),
+    SCHOOL_MEMBERSHIP_REQUIRED(HttpStatus.FORBIDDEN, "현재 재학 중인 활성 학교 계정만 이용할 수 있습니다."),
 }

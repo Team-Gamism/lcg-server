@@ -17,6 +17,9 @@ java {
 
 repositories {
     mavenCentral()
+    maven("https://jitpack.io") {
+        content { includeModule("com.github.themoment-team", "datagsm-oauth-sdk-java") }
+    }
 }
 
 dependencies {
@@ -26,6 +29,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.springframework.boot:spring-boot-starter-session-data-redis")
+    implementation("com.github.themoment-team:datagsm-oauth-sdk-java:1.6.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")

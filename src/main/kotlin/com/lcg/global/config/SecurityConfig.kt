@@ -4,12 +4,18 @@ import jakarta.servlet.DispatcherType
 import com.lcg.global.exception.ApiErrorCode
 import com.lcg.global.exception.ProblemDetailFactory
 import com.lcg.global.filter.RequestIdFilter
+import com.lcg.domain.auth.service.QueryAuthenticatedMemberService
+import com.lcg.global.security.SessionAccessFilter
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository
+import org.springframework.security.web.context.SecurityContextHolderFilter
+import org.springframework.security.web.context.SecurityContextRepository
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
@@ -21,8 +27,15 @@ class SecurityConfig(
     private val problemDetailFactory: ProblemDetailFactory,
 ) {
     @Bean
-    fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
+    fun securityFilterChain(
+        http: HttpSecurity,
+        contexts: SecurityContextRepository,
+        members: QueryAuthenticatedMemberService,
+    ): SecurityFilterChain {
         http
+            .securityContext { it.securityContextRepository(contexts).requireExplicitSave(true) }
+            .addFilterAfter(SessionAccessFilter(members, problemDetailFactory), SecurityContextHolderFilter::class.java)
+            .headers { it.referrerPolicy { policy -> policy.policy(ReferrerPolicy.NO_REFERRER) } }
             .cors { }
             .csrf { }
             .formLogin { it.disable() }
@@ -34,6 +47,9 @@ class SecurityConfig(
                 it.requestMatchers(
                     HttpMethod.GET,
                     "/api/v1/system/ping",
+                    "/api/v1/auth/school/login",
+                    "/api/v1/auth/school/callback",
+                    "/api/v1/auth/csrf",
                     "/actuator/health/liveness",
                     "/actuator/health/readiness",
                 ).permitAll()
@@ -58,6 +74,11 @@ class SecurityConfig(
             }
 
         return http.build()
+    }
+
+    @Bean
+    fun securityContextRepository(): SecurityContextRepository = HttpSessionSecurityContextRepository().apply {
+        setDisableUrlRewriting(true)
     }
 
     @Bean

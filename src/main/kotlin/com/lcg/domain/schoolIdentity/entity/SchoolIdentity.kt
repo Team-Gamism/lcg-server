@@ -37,6 +37,15 @@ class SchoolIdentity(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = createdAt,
 
+    @Column(name = "school_eligible", nullable = false)
+    var schoolEligible: Boolean = false,
+
+    @Column(name = "verified_grade")
+    var verifiedGrade: Int? = null,
+
+    @Column(name = "verified_at")
+    var verifiedAt: Instant? = null,
+
     @Version
     @Column(nullable = false)
     var version: Long = 0,
