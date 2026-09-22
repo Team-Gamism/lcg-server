@@ -39,22 +39,24 @@ src/test/kotlin/com/lcg/
 
 | 작업 | 구현한 내용 | 남은 내용 |
 | --- | --- | --- |
-| FND-01 | 빌드 버전·패키지 구조·JPA/Flyway 선택 | DataGSM SDK 호환성, D-01~11 정책 결정 |
+| FND-01 | 빌드 버전·패키지 구조·JPA/Flyway·SDK 선택, D-01·D-04 확정 | 나머지 정책, 실제 OAuth 클라이언트 등록 |
 | FND-02 | Gradle Wrapper, JDK 21 toolchain, 환경별 설정, 로컬 Compose, 실행 안내와 검증 완료 | 없음 |
-| FND-03 | User/SchoolIdentity 엔티티·저장소, V1 마이그레이션, UUID·UTC·고유키·외래키·낙관적 버전 | 회원 상태·권한 모델, 이전 스키마 업그레이드 검증, 운영 마이그레이션 절차 |
-| FND-04 | Redis 연결·타임아웃, 환경별 키·버전·세션 네임스페이스, TTL 검증 | 실제 세션 저장, 캐시 복구, 장애 처리, 분산 요청 합치기 |
-| FND-05 | 상태 API, 로컬 OpenAPI, CORS·CSRF·기본 접근 제어, ProblemDetail·오류 코드·traceId | 페이지네이션, 요청 크기·빈도 제한, 실제 회원·리소스 권한 검사 |
+| FND-03 | User/SchoolIdentity, V1→V2 업그레이드, 회원 상태·역할·세션 버전·학교 검증 정보, 동시 가입 잠금 | 운영 마이그레이션 절차 |
+| FND-04 | Redis 연결·타임아웃, 환경별 키·실제 Spring Session 저장, OAuth state 원자적 소비·TTL | 캐시 복구, 저장소 장애 검증, 분산 요청 합치기 |
+| FND-05 | 상태·인증 API, OpenAPI, CORS·CSRF·회원 상태·역할 검사, ProblemDetail·traceId | 페이지네이션, 요청 크기·빈도 제한, 기능별 소유권 검사 |
 | FND-06 | 미착수 | 영속 작업·Outbox 전체 |
 
-버전은 JDK 21, Kotlin 2.3.21, Spring Boot 4.1.1, Gradle 9.7.1, PostgreSQL 17.11, Redis 8.2.9로 고정했다. Gradle 배포 체크섬과 Compose 이미지 digest도 기록했다. DataGSM OAuth SDK는 아직 의존성에 추가하지 않았으며 `AUTH-01`에서 검증한다.
+버전은 JDK 21, Kotlin 2.3.21, Spring Boot 4.1.1, Gradle 9.7.1, PostgreSQL 17.11, Redis 8.2.9로 고정했다. Gradle 배포 체크섬과 Compose 이미지 digest도 기록했다. 2026-09-22 DataGSM OAuth SDK 1.6.0과 Spring Session Redis를 추가했고, 상세 계약은 [인증 문서](02-auth-users.md)에 기록했다.
 
-현재 HTTP 성공 응답은 DTO, 오류 응답은 `ProblemDetail`이다. `cowork-project`의 패키지·서비스·DTO 작성 방식을 적용했고, 공통 라이브러리 `the-sdk`와 `CommonApiResponse`는 도입하지 않았다. 학교 OAuth SDK와는 별개의 라이브러리다. 상태 확인을 제외한 API는 인증이 필요하며 로그인 기능과 Redis 세션 저장은 아직 없다.
+현재 HTTP 성공 응답은 DTO, 오류 응답은 `ProblemDetail`이다. `cowork-project`의 패키지·서비스·DTO 작성 방식을 적용했고, 공통 라이브러리 `the-sdk`와 `CommonApiResponse`는 도입하지 않았다. 학교 OAuth SDK와는 별개의 라이브러리다. 상태 확인·로그인 시작·콜백·CSRF 토큰 외 API는 인증이 필요하며 로컬 문서는 별도로 공개한다.
 
 로컬 실행 절차는 [루트 README](../README.md)를 따른다. PostgreSQL은 `15432`, Redis는 `16379`를 사용한다. 기존 기본 포트의 서비스를 함께 실행할 수 있다.
 
 마이그레이션은 현재 애플리케이션 시작 시 Flyway가 수행하고, JPA는 `ddl-auto: validate`로 스키마를 검증한다. 배포된 마이그레이션은 수정하지 않고 다음 버전을 추가한다. 운영 전에는 `FND-03`·`OPS-02`에서 실행 권한과 배포 절차를 확정한다.
 
 검증 결과: `check bootJar`와 `integrationTest` 성공. API 계약 16개, 실제 PostgreSQL·Redis 통합 6개가 모두 통과했다. 빈 DB의 V1 생성, 재실행 시 적용할 마이그레이션 없음, 회원 UTC 저장·고유키·외래키, Redis TTL, 상태 API·OpenAPI를 확인했다. `prod` 프로필의 필수 설정 누락 시 JAR가 종료 코드 1로 실패하는 것도 확인했다. 원격 GitHub Actions 실행 결과는 아직 없다.
+
+2026-09-22 추가 검증: `check integrationTest bootJar` 성공. 전체 52개 테스트에 SDK 계약·인증 통합·기존 V1 회원의 V2 업그레이드를 포함한다. 실제 개발/운영 DataGSM 계정과 원격 CI 검증은 남아 있다.
 
 ## TODO
 
