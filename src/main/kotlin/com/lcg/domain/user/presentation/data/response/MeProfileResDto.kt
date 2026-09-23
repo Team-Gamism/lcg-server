@@ -1,6 +1,7 @@
 package com.lcg.domain.user.presentation.data.response
 
 import com.lcg.domain.auth.model.AuthenticatedMember
+import com.lcg.domain.schoolIdentity.entity.SchoolIdentity
 import com.lcg.domain.user.entity.UserPosition
 import com.lcg.domain.user.entity.UserProfile
 import com.lcg.domain.user.entity.UserRole
@@ -21,11 +22,13 @@ data class MeProfileResDto(
     val introduction: String?,
 ) {
     companion object {
-        fun of(member: AuthenticatedMember, profile: UserProfile) = MeProfileResDto(
+        fun of(member: AuthenticatedMember, profile: UserProfile, identity: SchoolIdentity) = MeProfileResDto(
             id = member.userId,
             role = member.role,
             grade = member.grade,
-            name = profile.schoolName,
+            name = identity.studentNumber?.let { number ->
+                identity.studentName?.let { studentName -> "$number $studentName" }
+            },
             riotId = profile.riotId,
             primaryPosition = profile.primaryPosition,
             secondaryPosition = profile.secondaryPosition,

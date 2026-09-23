@@ -46,6 +46,12 @@ class SchoolIdentity(
     @Column(name = "verified_at")
     var verifiedAt: Instant? = null,
 
+    @Column(name = "student_number")
+    var studentNumber: Int? = null,
+
+    @Column(name = "student_name", length = 50)
+    var studentName: String? = null,
+
     @Version
     @Column(nullable = false)
     var version: Long = 0,

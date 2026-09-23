@@ -1,6 +1,8 @@
 package com.lcg.domain.user.service.impl
 
 import com.lcg.domain.auth.model.AuthenticatedMember
+import com.lcg.domain.schoolIdentity.entity.SchoolIdentityProvider.DATAGSM
+import com.lcg.domain.schoolIdentity.repository.SchoolIdentityRepository
 import com.lcg.domain.user.entity.UserPosition
 import com.lcg.domain.user.presentation.data.request.UpdateMyProfileReqDto
 import com.lcg.domain.user.presentation.data.response.MeProfileResDto
@@ -16,12 +18,15 @@ import java.time.Instant
 @Service
 class UpdateMyProfileServiceImpl(
     private val profiles: UserProfileRepository,
+    private val identities: SchoolIdentityRepository,
 ) : UpdateMyProfileService {
     @Transactional
     override fun execute(member: AuthenticatedMember, request: UpdateMyProfileReqDto): MeProfileResDto {
         validatePositions(request.primaryPosition, request.secondaryPosition)
         val profile = profiles.findById(member.userId)
             .orElseThrow { ExpectedException(ApiErrorCode.NOT_FOUND) }
+        val identity = identities.findByUserIdAndProvider(member.userId, DATAGSM)
+            ?: throw ExpectedException(ApiErrorCode.NOT_FOUND)
         profile.update(
             riotId = request.riotId?.let(::normalizeRiotId),
             primaryPosition = request.primaryPosition,
@@ -29,7 +34,7 @@ class UpdateMyProfileServiceImpl(
             introduction = request.introduction?.trim()?.takeIf(String::isNotEmpty),
             updatedAt = Instant.now(),
         )
-        return MeProfileResDto.of(member, profile)
+        return MeProfileResDto.of(member, profile, identity)
     }
 
     private fun normalizeRiotId(rawRiotId: String): String {

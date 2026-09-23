@@ -11,5 +11,6 @@ class SchoolAccount(
     val providerUserId: String,
     val grade: Int?,
     val eligible: Boolean,
-    val schoolName: String? = null,
+    val studentNumber: Int? = null,
+    val studentName: String? = null,
 )

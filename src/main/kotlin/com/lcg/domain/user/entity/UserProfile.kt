@@ -17,9 +17,6 @@ class UserProfile(
     @Column(name = "user_id")
     val userId: UUID,
 
-    @Column(name = "school_name", length = 64)
-    var schoolName: String? = null,
-
     @Column(name = "riot_id", length = 22)
     var riotId: String? = null,
 
@@ -55,11 +52,6 @@ class UserProfile(
         this.primaryPosition = primaryPosition
         this.secondaryPosition = secondaryPosition
         this.introduction = introduction
-        this.updatedAt = updatedAt
-    }
-
-    fun updateSchoolName(schoolName: String, updatedAt: Instant) {
-        this.schoolName = schoolName
         this.updatedAt = updatedAt
     }
 }
