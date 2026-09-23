@@ -41,28 +41,28 @@ class DataGsmSchoolOAuthClient(
         val subject = info.id?.takeIf { it > 0 } ?: throw ExpectedException(ApiErrorCode.UPSTREAM_ERROR)
         val student = info.student
         val grade = student?.grade?.takeIf { it in 1..3 }
-        val schoolName = student?.let(::schoolName)
+        val studentNumber = student?.let(::studentNumber)
+        val studentName = student?.let(::studentName)
         val eligible = info.status == AccountStatus.ACTIVE && info.objectType == AccountObjectType.STUDENT &&
             student != null && student.getIsLeaveSchool() == false && grade != null &&
-            schoolName != null && student.role in
+            studentNumber != null && studentName != null && student.role in
             setOf(
                 StudentRole.GENERAL_STUDENT,
                 StudentRole.STUDENT_COUNCIL,
                 StudentRole.DORMITORY_MANAGER,
             )
-        return SchoolAccount(subject.toString(), grade, eligible, schoolName)
+        return SchoolAccount(subject.toString(), grade, eligible, studentNumber, studentName)
     }
 
     private fun client(): DataGsmOAuthClient = clients.ifAvailable
         ?: throw ExpectedException(ApiErrorCode.SERVICE_UNAVAILABLE)
 
-    private fun schoolName(student: Student): String? {
-        val studentNumber = student.studentNumber?.takeIf { it in 1000..9999 } ?: return null
-        val name = student.name?.trim()?.takeIf {
+    private fun studentNumber(student: Student): Int? = student.studentNumber?.takeIf { it in 1000..9999 }
+
+    private fun studentName(student: Student): String? =
+        student.name?.trim()?.takeIf {
             it.length in 2..50 && it.none(Char::isISOControl)
-        } ?: return null
-        return "$studentNumber $name"
-    }
+        }
 
     private fun <T> call(tokenExchange: Boolean = false, action: () -> T): T = try {
         action()

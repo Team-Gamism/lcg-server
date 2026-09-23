@@ -67,11 +67,13 @@ class InfrastructureIntegrationTest {
             val row = jdbc.queryForMap("SELECT status, role, session_version FROM $schema.users WHERE id=?", userId)
             assertThat(row).containsEntry("status", "ACTIVE").containsEntry("role", "MEMBER").containsEntry("session_version", 0L)
             assertThat(jdbc.queryForObject("SELECT school_eligible FROM $schema.school_identities WHERE user_id=?", Boolean::class.java, userId)).isFalse()
+            val identity = jdbc.queryForMap("SELECT student_number, student_name FROM $schema.school_identities WHERE user_id=?", userId)
+            assertThat(identity).containsEntry("student_number", null).containsEntry("student_name", null)
             val v3 = Flyway.configure().dataSource(jdbc.dataSource!!).schemas(schema).load()
             assertThat(v3.migrate().migrationsExecuted).isEqualTo(1)
             v3.validate()
-            val profile = jdbc.queryForMap("SELECT school_name, riot_id FROM $schema.user_profiles WHERE user_id=?", userId)
-            assertThat(profile).containsEntry("school_name", null).containsEntry("riot_id", null)
+            val profile = jdbc.queryForMap("SELECT riot_id FROM $schema.user_profiles WHERE user_id=?", userId)
+            assertThat(profile).containsEntry("riot_id", null)
         } finally {
             // Only the unique schema created by this test is removed.
             jdbc.execute("DROP SCHEMA IF EXISTS $schema CASCADE")

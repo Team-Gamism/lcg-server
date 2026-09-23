@@ -1,6 +1,8 @@
 package com.lcg.domain.user.service.impl
 
 import com.lcg.domain.auth.model.AuthenticatedMember
+import com.lcg.domain.schoolIdentity.entity.SchoolIdentityProvider.DATAGSM
+import com.lcg.domain.schoolIdentity.repository.SchoolIdentityRepository
 import com.lcg.domain.user.presentation.data.response.MeProfileResDto
 import com.lcg.domain.user.repository.UserProfileRepository
 import com.lcg.domain.user.service.QueryMyProfileService
@@ -12,11 +14,14 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class QueryMyProfileServiceImpl(
     private val profiles: UserProfileRepository,
+    private val identities: SchoolIdentityRepository,
 ) : QueryMyProfileService {
     @Transactional(readOnly = true)
     override fun execute(member: AuthenticatedMember): MeProfileResDto {
         val profile = profiles.findById(member.userId)
             .orElseThrow { ExpectedException(ApiErrorCode.NOT_FOUND) }
-        return MeProfileResDto.of(member, profile)
+        val identity = identities.findByUserIdAndProvider(member.userId, DATAGSM)
+            ?: throw ExpectedException(ApiErrorCode.NOT_FOUND)
+        return MeProfileResDto.of(member, profile, identity)
     }
 }

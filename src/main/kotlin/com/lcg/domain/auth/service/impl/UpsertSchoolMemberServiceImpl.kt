@@ -34,6 +34,8 @@ class UpsertSchoolMemberServiceImpl(
                 schoolEligible = false
                 verifiedGrade = null
                 verifiedAt = now
+                studentNumber = null
+                studentName = null
                 updatedAt = now
                 user.sessionVersion++
                 user.updatedAt = now
@@ -41,15 +43,17 @@ class UpsertSchoolMemberServiceImpl(
             return null
         }
         val grade = account.grade ?: throw ExpectedException(ApiErrorCode.UPSTREAM_ERROR)
-        val schoolName = account.schoolName ?: throw ExpectedException(ApiErrorCode.UPSTREAM_ERROR)
+        val studentNumber = account.studentNumber ?: throw ExpectedException(ApiErrorCode.UPSTREAM_ERROR)
+        val studentName = account.studentName ?: throw ExpectedException(ApiErrorCode.UPSTREAM_ERROR)
         val user = existing?.user ?: users.save(User())
         if (user.status != UserStatus.ACTIVE) throw ExpectedException(ApiErrorCode.FORBIDDEN)
-        val profile = profiles.findById(user.id).orElseGet { profiles.save(UserProfile(user.id)) }
-        profile.updateSchoolName(schoolName, now)
+        profiles.findById(user.id).orElseGet { profiles.save(UserProfile(user.id)) }
         val identity = existing ?: SchoolIdentity(user = user, provider = DATAGSM, providerUserId = account.providerUserId)
         identity.schoolEligible = true
         identity.verifiedGrade = grade
         identity.verifiedAt = now
+        identity.studentNumber = studentNumber
+        identity.studentName = studentName
         identity.updatedAt = now
         if (existing == null) identities.save(identity)
         return AuthenticatedMember(user.id, user.role, grade, user.sessionVersion, now)

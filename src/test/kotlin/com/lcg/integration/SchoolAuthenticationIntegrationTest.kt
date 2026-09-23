@@ -150,12 +150,17 @@ class SchoolAuthenticationIntegrationTest {
         val subject = subject()
         val countBefore = jdbc.queryForObject("SELECT count(*) FROM users", Long::class.java)!!
         val calls = (1..6).map {
-            CompletableFuture.supplyAsync { members.execute(SchoolAccount(subject.toString(), 2, true, "2101 동시 가입"))!! }
+            CompletableFuture.supplyAsync { members.execute(SchoolAccount(subject.toString(), 2, true, 2101, "동시 가입"))!! }
         }
         val ids = calls.map { it.join().userId }
         assertThat(ids.distinct()).hasSize(1)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Long::class.java)).isEqualTo(countBefore + 1)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM school_identities WHERE provider_user_id=?", Long::class.java, subject.toString())).isEqualTo(1)
+        val identity = jdbc.queryForMap(
+            "SELECT student_number, student_name FROM school_identities WHERE provider_user_id=?",
+            subject.toString(),
+        )
+        assertThat(identity).containsEntry("student_number", 2101).containsEntry("student_name", "동시 가입")
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_profiles WHERE user_id=?", Long::class.java, ids.first())).isEqualTo(1)
     }
 

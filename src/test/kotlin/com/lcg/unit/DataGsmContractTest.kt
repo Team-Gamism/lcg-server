@@ -52,7 +52,8 @@ class DataGsmContractTest {
         val account = adapter.authenticate(code, auth.verifier)
         assertThat(account.providerUserId).isEqualTo("101") // top-level ID, never student.id
         assertThat(account.grade).isEqualTo(2)
-        assertThat(account.schoolName).isEqualTo("2101 테스트 학생")
+        assertThat(account.studentNumber).isEqualTo(2101)
+        assertThat(account.studentName).isEqualTo("테스트 학생")
         assertThat(account.eligible).isTrue()
         val tokenRequest = stub.requests.first()
         val body = mapper.readTree(tokenRequest.body)

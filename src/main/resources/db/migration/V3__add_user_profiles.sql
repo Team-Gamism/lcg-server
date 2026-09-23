@@ -1,6 +1,5 @@
 CREATE TABLE user_profiles (
     user_id UUID PRIMARY KEY,
-    school_name VARCHAR(64),
     riot_id VARCHAR(22),
     primary_position VARCHAR(16),
     secondary_position VARCHAR(16),
@@ -9,9 +8,6 @@ CREATE TABLE user_profiles (
     updated_at TIMESTAMPTZ NOT NULL,
     version BIGINT NOT NULL DEFAULT 0,
     CONSTRAINT fk_user_profiles_user FOREIGN KEY (user_id) REFERENCES users (id),
-    CONSTRAINT ck_user_profiles_school_name CHECK (
-        school_name IS NULL OR (char_length(school_name) BETWEEN 3 AND 64 AND school_name = btrim(school_name))
-    ),
     CONSTRAINT ck_user_profiles_riot_id CHECK (
         riot_id IS NULL OR (
             char_length(riot_id) BETWEEN 7 AND 22
