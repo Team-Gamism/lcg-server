@@ -85,6 +85,9 @@ lcg:
     callback-uri: ${DATAGSM_CALLBACK_URI:}
     success-uri: ${LOGIN_SUCCESS_URI:}
     secure-cookies: ${server.servlet.session.cookie.secure}
+  riot:
+    enabled: ${RIOT_ENABLED:false}
+    api-key: ${RIOT_API_KEY:}
   security:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
     public-docs: false
